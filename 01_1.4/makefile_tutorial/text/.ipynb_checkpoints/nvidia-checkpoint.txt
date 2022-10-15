@@ -1,0 +1,45 @@
+MLPerf is an industry-wide AI consortium tasked with developing a suite of performance benchmarks that cover a range of leading AI workloads widely in use. The latest MLPerf v1.0 training round includes vision, language and recommender systems, and reinforcement learning tasks. It is continually evolving to reflect the state-of-the-art AI applications.
+
+NVIDIA submitted MLPerf v1.0 training results for all eight benchmarks, as is our tradition. In fact, systems built upon the NVIDIA AI platform are the only commercially available systems to make submissions across the board.
+
+Compared to our previous MLPerf v0.7 submissions, we improved up to 2.1x on a chip-to-chip basis and up to 3.5x at scale. We set 16 performance records with eight on a per-chip basis and eight at-scale training in the commercially available solutions category.
+This is the second MLPerf training round featuring NVIDIA A100 GPUs. Our continual year-over-year improvement on the same hardware is a lively testament to the strength of the NVIDIA platform and commitment to continuous software improvement. As in previous MLPerf rounds, NVIDIA engineers developed a host of innovations to achieve these new levels of performance:
+
+Extending CUDA Graphs across all benchmarks. Neural networks are traditionally launched as individual kernels from the CPU to execute on the GPU. In MLPerf v1.0, we launched the entire sequence of kernels as a graph on the GPU, minimizing communication with the CPU.
+Using SHARP to double the effective interconnect bandwidth between nodes. SHARP offloads collective operations from the CPU and GPU to the network and eliminates the need for sending data multiple times between endpoints.
+The CUDA graph and SHARP enhancements enabled us to increase our scale to a record number of 4096 GPUs used to solve a single AI network.
+
+Spatial parallelism enabled us to split a single image across eight GPUs for massive image segmentation networks like 3D U-Net and to use more GPUs for higher throughput.
+Among hardware improvements, new HBM2e GPU memory on the NVIDIA A100 GPU increased memory bandwidth by nearly 30% to 2 TBps.
+This post provides insights into many of the optimizations used to deliver the outstanding scale and performance. Many of these improvements are available on NGC, which is the hub for NVIDIA GPU-optimized software. You can realize the benefits of these optimizations in your real-world applications, instead of just observing better benchmark scores from the sideline.
+
+At-scale training
+Large-scale training requires system hardware and software to be precisely tuned to work together and support the unique performance requirements that arise at scale. NVIDIA made major advances on both dimensions, which are now available for production use.
+
+On the system side, the key building block of our at-scale training is the NVIDIA DGX SuperPOD. DGX SuperPOD is the culmination of years of expertise in HPC and AI data centers. It is based on the NVIDIA DGX A100 with the latest NVIDIA A100 Tensor Core GPU, third-generation NVIDIA NVLink, NVSwitch, and the NVIDIA ConnectX-6 VPI 200 Gbps HDR InfiniBand. These were combined to make Selene a top 5 supercomputer in the Top 500 supercomputer list, with the following components:
+
+4480 NVIDIA A100 Tensor Core GPUs
+560 NVIDIA DGX A100 systems
+850 Mellanox 200G HDR InfiniBand switches
+On the software side, the NGC container release v. 21.05 enhances and enables several capabilities:
+
+Distributed optimizer support enhancement.
+Improved communication efficiency with Mellanox HDR Infiniband and NCCL 2.9.9.
+Added SHARP support. SHARP improves upon the performance of MPI and machine learning collective operations. SHARP support was added to NCCL to offload all-reduce collective operations into the network fabric, reducing the amount of data traversing between nodes.
+Workloads
+In this section, we dive into the optimizations for selected individual MLPerf workloads.
+
+Recommendation (DLRM)
+Recommendation is arguably the most pervasive AI workload in data centers today. The NVIDIA MLPerf DLRM submission was based on HugeCTR, a GPU-accelerated recommendation framework that is part of the NVIDIA Merlin open beta framework. The HugeCTR v3.1 beta release added the following optimizations:
+
+Hybrid embedding
+Optimized collectives
+Optimized data reader
+Overlapping MLP with embedding
+Whole-iteration CUDA graph
+Hybrid embedding
+One of the major challenges in scaling DLRM to multiple nodes is the ~10x difference in per-GPU all-to-all bandwidth between NVLink and Infiniband. This makes the embedding exchange between nodes a significant bottleneck during training.
+
+To counteract this, HugeCTR implemented hybrid embedding, a novel embedding design that deduplicates the categories in a batch before doing the embedding weight exchange in the forward pass. It also reduces the gradients locally before doing gradient exchange in the backward pass.
+
+For efficient deduplication, the hybrid embedding maps the categories to frequent and infrequent embeddings based on the statistical access frequency of categories. The frequent embedding is implemented in a data-parallel fashion that takes away most of the replicated categories in a batch, reducing the embedding exchange traffic. Infrequent embedding follows the distributed model parallel-embedding paradigm. This enables DLRM to scale to multiple nodes with unprecedented efficiency.

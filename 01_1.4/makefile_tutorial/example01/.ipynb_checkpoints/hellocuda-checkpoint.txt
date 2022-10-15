@@ -1,0 +1,3 @@
+hello cuda
+hello arm
+hello nvidia
