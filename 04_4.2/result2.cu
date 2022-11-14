@@ -64,7 +64,7 @@ int main( void ) {
 
     CHECK( cudaEventRecord( start, 0 ) );
     // now loop over full data, in bite-sized chunks
-    for (int i=0; i<FULL_DATA_SIZE; i+= N) {
+    for (int i=0; i<FULL_DATA_SIZE; i+= N) {  //多流时有区别， 比如2条，这里是N*2
         // enqueue copies of a in stream0 and stream1
         CHECK( cudaMemcpyAsync( dev_a0, host_a+i, N * sizeof(int), cudaMemcpyHostToDevice, stream0 ) );
         //CHECK( cudaMemcpyAsync( dev_a1, host_a+i+N, N * sizeof(int), cudaMemcpyHostToDevice, stream1 ) );

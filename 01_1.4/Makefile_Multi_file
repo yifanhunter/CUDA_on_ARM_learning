@@ -6,10 +6,10 @@ CC = /usr/local/cuda/bin/nvcc
 
 
 $(TARGETBIN):$(TEST_SOURCE) hello_from_gpu.o
-	$(CC)  $(TEST_SOURCE) hello_from_gpu.o -o $(TARGETBIN)
+	$(CC) -arch=compute_80 -code=sm_80  $(TEST_SOURCE) hello_from_gpu.o -o $(TARGETBIN)
 
 hello_from_gpu.o:hello_from_gpu.cu
-	$(CC) --device-c hello_from_gpu.cu -o hello_from_gpu.o
+	$(CC) --device-c -arch=compute_80 -code=sm_80 hello_from_gpu.cu -o hello_from_gpu.o
 
 .PHONY:clean
 clean:

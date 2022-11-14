@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <math.h>
 #include "error.cuh"
@@ -37,7 +38,7 @@ void cpu_matrix_mult(int *h_a, int *h_b, int *h_result, int m, int n, int k) {
 int main(int argc, char const *argv[])
 {
     int m=100;
-    int n=100;
+    int n=2000;
     int k=100;
 
     int *h_a, *h_b, *h_c, *h_cc;
@@ -74,8 +75,10 @@ int main(int argc, char const *argv[])
    
     gpu_matrix_mult<<<dimGrid, dimBlock>>>(d_a, d_b, d_c, m, n, k);    
 
-    CHECK(cudaMemcpy(h_c, d_c, (sizeof(int)*m*k), cudaMemcpyDeviceToHost));
+    cudaMemcpy(h_c, d_c, (sizeof(int)*m*k), cudaMemcpyDeviceToHost);
     //cudaThreadSynchronize();
+    
+    CHECK(cudaMemcpy(h_c, d_c, (sizeof(int)*m*k), cudaMemcpyDeviceToHost));
 
     cpu_matrix_mult(h_a, h_b, h_cc, m, n, k);
 

@@ -2,7 +2,7 @@
 #include <math.h>
 #include "error.cuh"
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE  8
 
 __global__ void gpu_matrix_mult(int *a,int *b, int *c, int m, int n, int k)
 { 
@@ -19,33 +19,44 @@ __global__ void gpu_matrix_mult(int *a,int *b, int *c, int m, int n, int k)
     }
 } 
 
-__global__ void gpu_matrix_mult_shared(int *d_a, int *d_b, int *d_result, int n) 
+__global__ void gpu_matrix_mult_shared(int *d_a, int *d_b, int *d_result, int m, int n, int k) 
 {
     __shared__ int tile_a[BLOCK_SIZE][BLOCK_SIZE];
-    __shared__ int tile_b[BLOCK_SIZE][BLOCK_SIZE];
-
+    __shared__ int tile_b[BLOCK_SIZE][BLOCK_SIZE]; // 共享变量
+ 
     int row = blockIdx.y * BLOCK_SIZE + threadIdx.y;
-    int col = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    int col = blockIdx.x * BLOCK_SIZE + threadIdx.x; // 横纵坐标
     int tmp = 0;
     int idx;
-
-    for (int sub = 0; sub < gridDim.x; ++sub) 
+ 
+    for (int sub = 0; sub <= n/BLOCK_SIZE; ++sub) 
     {
-        idx = row * n + sub * BLOCK_SIZE + threadIdx.x;
-        tile_a[threadIdx.y][threadIdx.x] = row<n && (sub * BLOCK_SIZE + threadIdx.x)<n? d_a[idx]:0;
-        idx = (sub * BLOCK_SIZE + threadIdx.y) * n + col;
-        tile_b[threadIdx.y][threadIdx.x] = col<n && (sub * BLOCK_SIZE + threadIdx.y)<n? d_b[idx]:0;
-
-        __syncthreads();
+        idx = row * n + sub * BLOCK_SIZE + threadIdx.x; // 共享变量的对应于原数据的一维下标
+       // printf("%d %d \n",sub * BLOCK_SIZE + threadIdx.x,n);
+        tile_a[threadIdx.y][threadIdx.x] = row<m && (sub * BLOCK_SIZE + threadIdx.x)<n? d_a[idx]:0; // 规避多余操作
+        idx = (sub * BLOCK_SIZE + threadIdx.y) * k + col; //原来的代码是乘以n，需要改成K
+       // printf("%d %d %d %d %d\n",col,k,sub * BLOCK_SIZE + threadIdx.y, n,idx);
+        tile_b[threadIdx.y][threadIdx.x] = col<k && (sub * BLOCK_SIZE + threadIdx.y)<n? d_b[idx]:0;
+        /*
+        一个共享块的例子：
+        针对于tile_a
+        共享变量的下标                              原数据下标:
+        (0,0) (0,1) ... (0,15)                    0 1 2 ... 15
+        (1,0) ...       (1,15)     --------->     n n+1 ... n+15
+        ...                                       ...
+        (15,0) ...      (15,15)                      15n 15n+1 ... 15n+15
+        */
+        
+        __syncthreads(); //同步上述操作 求和
         for (int k = 0; k < BLOCK_SIZE; ++k) 
         {
             tmp += tile_a[threadIdx.y][k] * tile_b[k][threadIdx.x];
         }
         __syncthreads();
     }
-    if(row < n && col < n)
+    if(row < m && col < k)
     {
-        d_result[row * n + col] = tmp;
+        d_result[row * k + col] = tmp;
     }
 }
 
@@ -66,9 +77,9 @@ void cpu_matrix_mult(int *h_a, int *h_b, int *h_result, int m, int n, int k) {
 
 int main(int argc, char const *argv[])
 {
-    int m=1000;
-    int n=1000;
-    int k=1000;
+    int m=2000;
+    int n=1290;
+    int k=490;
 
     int *h_a, *h_b, *h_c, *h_cc, *h_cs;
     CHECK(cudaMallocHost((void **) &h_a, sizeof(int)*m*n));
@@ -81,19 +92,19 @@ int main(int argc, char const *argv[])
     CHECK(cudaEventCreate(&start));
     CHECK(cudaEventCreate(&stop));
     CHECK(cudaEventCreate(&stop_share));
-
-
+    
     for (int i = 0; i < m; ++i) {
         for (int j = 0; j < n; ++j) {
-            h_a[i * n + j] = 1;
+            h_a[i * n + j] = rand() % 1024;
         }
     }
 
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < k; ++j) {
-            h_b[i * k + j] = 0;
+            h_b[i * k + j] = rand() % 1024;
         }
     }
+    
 
     int *d_a, *d_b, *d_c, *d_c_share;
     CHECK(cudaMalloc((void **) &d_a, sizeof(int)*m*n));
@@ -119,7 +130,7 @@ int main(int argc, char const *argv[])
     CHECK(cudaEventRecord(stop));
     CHECK(cudaEventSynchronize(stop));
     
-    gpu_matrix_mult_shared<<<dimGrid, dimBlock>>>(d_a, d_b, d_c_share, n);
+    gpu_matrix_mult_shared<<<dimGrid, dimBlock>>>(d_a, d_b, d_c_share, m,n,k) ;
     CHECK(cudaMemcpy(h_cs, d_c_share, (sizeof(int)*m*k), cudaMemcpyDeviceToHost));
     
     CHECK(cudaEventRecord(stop_share));
@@ -134,21 +145,22 @@ int main(int argc, char const *argv[])
     CHECK(cudaEventDestroy(start));
     CHECK(cudaEventDestroy(stop));    
 
-    //cpu_matrix_mult(h_a, h_b, h_c, m, n, k);
+    cpu_matrix_mult(h_a, h_b, h_cc, m, n, k);
 
     int ok = 1;
     for (int i = 0; i < m; ++i)
     { 
         for (int j = 0; j < k; ++j)
         {
-            if(fabs(h_cs[i*k + j] - 0)>(1.0e-10))
+            if(fabs(h_cs[i*k + j] - h_cc[i*k + j])>(1.0e-10))
             {
                 printf("hcs: %d hc: %d  ",h_cs[i*k + j], h_c[i*k + j]);
                 ok = 0;
             }
         }
     }
-
+    
+     printf("%d \n", h_cs[0]);
     if(ok)
     {
         printf("Pass!!!\n");

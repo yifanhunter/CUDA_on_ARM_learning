@@ -8,20 +8,7 @@ __managed__ int b[1000 * 1000];
 __managed__ int c_gpu[1000 * 1000];
 __managed__ int c_cpu[1000 * 1000];
 
-__global__ void gpu_matrix_mult(int* a, int* b, int* c, int m, int n, int k)
-{
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int sum = 0;
-    if (col < k && row < m)
-    {
-        for (int i = 0; i < n; i++)
-        {
-            sum += a[row * n + i] * b[i * k + col];
-        }
-        c[row * k + col] = sum;
-    }
-}
+
 __global__ void gpu_matrix_mult_shared(int* d_a, int* d_b, int* d_result, int M, int N, int K)
 {
     __shared__ int tile_a[BLOCK_SIZE][BLOCK_SIZE];

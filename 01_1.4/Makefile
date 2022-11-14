@@ -1,15 +1,12 @@
-TEST_SOURCE = hello_cuda02-test.cu
+TEST_SOURCE = hello_cuda.cu
 
-TARGETBIN := ./hello_cuda_multi_file
+TARGETBIN := ./hello_cuda
 
 CC = /usr/local/cuda/bin/nvcc
 
 
-$(TARGETBIN):$(TEST_SOURCE) hello_from_gpu.o
-	$(CC)  $(TEST_SOURCE) hello_from_gpu.o -o $(TARGETBIN)
-
-hello_from_gpu.o:hello_from_gpu.cu
-	$(CC) --device-c hello_from_gpu.cu -o hello_from_gpu.o
+$(TARGETBIN):$(TEST_SOURCE)
+	$(CC)  -arch=compute_80 -code=sm_80 $(TEST_SOURCE) -o $(TARGETBIN)
 
 .PHONY:clean
 clean:

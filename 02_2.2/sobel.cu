@@ -10,7 +10,27 @@ using namespace cv;
 //             x6 x7 x8 
 __global__ void sobel_gpu(unsigned char* in, unsigned char* out, int imgHeight, int imgWidth)
 {
-
+    int x = threadIdx.x + blockDim.x * blockIdx.x;
+    int y = threadIdx.y + blockDim.y * blockIdx.y;
+    int index = y * imgWidth + x;
+    int Gx = 0;
+    int Gy = 0;
+    unsigned char x0, x1, x2, x3, x4, x5, x6, x7, x8;
+    if (x > 0 && x < imgWidth && y>0 && y < imgHeight)
+    {
+        x0 = in[(y - 1) * imgWidth + x - 1];
+        x1 = in[(y - 1) * imgWidth + x ];
+        x2 = in[(y - 1) * imgWidth + x + 1];
+        x3 = in[(y) * imgWidth + x - 1];
+        x4 = in[(y ) * imgWidth + x ];
+        x5 = in[(y ) * imgWidth + x + 1];
+        x6 = in[(y + 1) * imgWidth + x - 1];
+        x7 = in[(y + 1) * imgWidth + x ];
+        x8 = in[(y + 1) * imgWidth + x + 1];
+        Gx = (x0 + x3 * 2 + x6) - (x2 + x5 * 2 + x8);
+        Gy = (x0 + x1 * 2 + x2) - (x6 + x7 * 2 + x8);
+        out[index] = (abs(Gx) + abs(Gy)) / 2;
+    }
 }
 
 //CPU实现Sobel边缘检测
